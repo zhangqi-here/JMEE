@@ -1,6 +1,7 @@
 import json
 import math
 import sys
+import os
 
 import torch
 import torch.nn as nn
@@ -138,7 +139,7 @@ def add_tokens(words, y, y_, x_len, all_tokens, word_i2s, label_i2s):
 
 
 def run_over_data(model, optimizer, data_iter, MAX_STEP, need_backward, tester, hyps, device, word_i2s, label_i2s,
-                  role_i2s, maxnorm, weight, save_output):
+                  role_i2s, maxnorm, weight, save_output, epoch):
     if need_backward:
         model.test_mode_off()
     else:
@@ -170,26 +171,32 @@ def run_over_data(model, optimizer, data_iter, MAX_STEP, need_backward, tester, 
         all_events.extend(events)
 
         SEQ_LEN = words.size()[1]
+        #print(SEQ_LEN)
+        #print(adjm)
         adjm = torch.stack([torch.sparse.FloatTensor(torch.LongTensor(adjmm[0]),
                                                      torch.FloatTensor(adjmm[1]),
                                                      torch.Size([hyps["gcn_et"], SEQ_LEN, SEQ_LEN])).to_dense() for
                             adjmm in adjm])
         words = words.to(device)
         # lemmas = lemmas.to(device)
-        x_len = x_len.to(device)
+        # x_len = x_len.to(device)
         postags = postags.to(device)
         adjm = adjm.to(device)
         y = y.to(device)
 
-        y_, mask, ae_logits, ae_logits_key = model.forward(words, x_len, postags, entitylabels, adjm, entities,
-                                                           label_i2s)
+        y_, mask, ae_logits, ae_logits_key = model.forward(words, x_len, postags, entitylabels, adjm, entities, y, events,
+                                                           label_i2s, need_backward)
         loss_ed = model.calculate_loss_ed(y_, mask, y, weight)
-        if len(ae_logits_key) > 0:
-            loss_ae, predicted_events = model.calculate_loss_ae(ae_logits, ae_logits_key, events, x_len.size()[0])
-            loss = loss_ed + hyps["loss_alpha"] * loss_ae
-        else:
+        if epoch <= -1:
             loss = loss_ed
             predicted_events = [{} for _ in range(x_len.size()[0])]
+        else:
+            if len(ae_logits_key) > 0:
+                loss_ae, predicted_events = model.calculate_loss_ae(ae_logits, ae_logits_key, events, x_len.size()[0])
+                loss = loss_ed + hyps["loss_alpha"] * loss_ae
+            else:
+                loss = loss_ed
+                predicted_events = [{} for _ in range(x_len.size()[0])]
         all_events_.extend(predicted_events)
 
         y__ = torch.max(y_, 2)[1].view(y.size()).tolist()
@@ -222,15 +229,60 @@ def run_over_data(model, optimizer, data_iter, MAX_STEP, need_backward, tester, 
         running_loss += loss.item()
 
     if save_output:
+        path_dir = "/".join(save_output.split("/")[:-1])
+        if not os.path.exists(path_dir):
+            os.makedirs(path_dir)
+        ans = save_prediction(all_events, all_events_, all_tokens, word_i2s, label_i2s, role_i2s)
         with open(save_output, "w", encoding="utf-8") as f:
-            for tokens in all_tokens:
-                for token in tokens:
-                    # to match conll2000 format
-                    f.write("%s %s %s\n" % (token.word, token.triggerLabel, token.predictedLabel))
-                f.write("\n")
+            json.dump(ans, f, ensure_ascii=False)
+        # print(all_events_)
+        # print(all_events)
 
     running_loss = running_loss / cnt
     ep, er, ef = tester.calculate_report(all_y, all_y_, transform=False)
     ap, ar, af = tester.calculate_sets(all_events, all_events_)
     print()
     return running_loss, ep, er, ef, ap, ar, af
+
+
+def save_prediction(y, y_, all_tokens, word_i2s, label_i2s,role_i2s):
+    #all_words = [x.word for x in all_tokens]
+    ans = []
+    for tokens, sent_ in zip(all_tokens, y_):
+        words = [x.word for x in tokens]
+        tmp_json = {}
+        tmp_json['sentence'] = "".join(words)
+        tmp_json['events'] = []
+        for key, value in sent_.items():
+            trigger_start = key[0]
+            trigger_end = key[1]
+            event_json = {}
+            event_json['trigger'] = {
+                "text": "".join(words[trigger_start: trigger_end]),
+                "length": trigger_end - trigger_start,
+                "offset": trigger_start
+            }
+            trigger_type = key[2]
+            event_json['polarity'] = trigger_type
+
+            event_json['arguments'] = []
+            arguments_ = sent_[key]
+            for item_ in arguments_:
+                role_start = item_[0]
+                role_end = item_[1]
+                role_type = item_[2]
+                event_json['arguments'].append(
+                    {
+                        "role": role_i2s[role_type],
+                        "text": "".join(words[role_start: role_end]),
+                        "offset": role_start,
+                        "length": role_end - role_end
+                    }
+                )
+            tmp_json['events'].append(event_json)
+        ans.append(tmp_json)
+    return ans
+
+
+
+

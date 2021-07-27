@@ -123,8 +123,8 @@ class Sentence:
 
         for edgeJson in edgeJsonList:
             ss = edgeJson.split("/")
-            fromIndex = int(ss[-1].split("=")[-1])
-            toIndex = int(ss[-2].split("=")[-1])
+            fromIndex = int(ss[-1].split("=")[-1])-1
+            toIndex = int(ss[-2].split("=")[-1])-1
             etype = ss[0]
             if etype == "root" or fromIndex == -1 or toIndex == -1 or fromIndex >= CUTOFF or toIndex >= CUTOFF:
                 continue

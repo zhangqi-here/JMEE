@@ -92,8 +92,8 @@ class EDModel(Model):
                      for position in positions]  # list of tensors [BATCH_SIZE, SEQ_LEN]
         return positions
 
-    def forward(self, word_sequence, x_len, pos_tagging_sequence, entity_type_sequence, adj, batch_golden_entities,
-                label_i2s):
+    def forward(self, word_sequence, x_len, pos_tagging_sequence, entity_type_sequence, adj, batch_golden_entities, batch_golden_triggers, batch_golden_events,
+                label_i2s, need_backward):
         '''
         extracting event triggers
 
@@ -150,7 +150,20 @@ class EDModel(Model):
         for i in range(BATCH_SIZE):
             predicted_event_triggers = EDTester.merge_segments(
                 [label_i2s[x] for x in trigger_outputs[i][:x_len[i]].tolist()])
-            golden_entities = batch_golden_entities[i]
+            golden_event_triggers = EDTester.merge_segments(
+                [label_i2s[x] for x in batch_golden_triggers[i][:x_len[i]].tolist()])
+
+            if need_backward:
+                # save the real sub/obj entities
+                gloden_event_arguments = {}
+                golden_entities = []
+                event = batch_golden_events[i]
+                for e_st_, e_ed_, r_label in event.keys():
+                    for e_st, e_ed, ae_label in event[(e_st_, e_ed_, r_label)]:
+                        gloden_event_arguments[(e_st, e_ed)] = 1
+                        golden_entities.append((e_st, e_ed, ae_label))
+            else:
+                golden_entities = batch_golden_entities[i]
             golden_entity_tensors = {}
             for j in range(len(golden_entities)):
                 e_st, e_ed, e_type_str = golden_entities[j]
@@ -162,14 +175,26 @@ class EDModel(Model):
                     print(xx[i, e_st:e_ed, ].mean(dim=0).size())
                     exit(-1)
 
-            for st in predicted_event_triggers:
-                ed, trigger_type_str = predicted_event_triggers[st]
-                event_tensor = xx[i, st:ed, ].mean(dim=0)  # (d')
-                for j in range(len(golden_entities)):
-                    e_st, e_ed, e_type_str = golden_entities[j]
-                    entity_tensor = golden_entity_tensors[golden_entities[j]]
-                    ae_hidden.append(torch.cat([event_tensor, entity_tensor]))  # (2 * d')
-                    ae_logits_key.append((i, st, ed, trigger_type_str, e_st, e_ed, e_type_str))
+            if need_backward:
+                for st in golden_event_triggers:
+                    ed, trigger_type_str = golden_event_triggers[st]
+                    event_tensor = xx[i, st:ed, ].mean(dim=0)  # (d')
+                    for j in range(len(golden_entities)):
+                        e_st, e_ed, e_type_str = golden_entities[j]
+                        if gloden_event_arguments.get((e_st, e_ed), 0) == 0:
+                            continue
+                        entity_tensor = golden_entity_tensors[golden_entities[j]]
+                        ae_hidden.append(torch.cat([event_tensor, entity_tensor]))  # (2 * d')
+                        ae_logits_key.append((i, st, ed, trigger_type_str, e_st, e_ed, e_type_str))
+            else:
+                for st in predicted_event_triggers:
+                    ed, trigger_type_str = predicted_event_triggers[st]
+                    event_tensor = xx[i, st:ed, ].mean(dim=0)  # (d')
+                    for j in range(len(golden_entities)):
+                        e_st, e_ed, e_type_str = golden_entities[j]
+                        entity_tensor = golden_entity_tensors[golden_entities[j]]
+                        ae_hidden.append(torch.cat([event_tensor, entity_tensor]))  # (2 * d')
+                        ae_logits_key.append((i, st, ed, trigger_type_str, e_st, e_ed, e_type_str))
         if len(ae_hidden) != 0:
             ae_hidden = self.ae_ol(torch.stack(ae_hidden, dim=0))
 

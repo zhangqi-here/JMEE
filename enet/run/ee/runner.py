@@ -2,6 +2,9 @@ import argparse
 import os
 import pickle
 import sys
+sys.path.append("/gpfs/home/lianghe/zhoujie/data/aqi/EMNLP2018-JMEE/enet")
+sys.path.append("/gpfs/home/lianghe/zhoujie/data/aqi/EMNLP2018-JMEE")
+print(sys.path)
 from functools import partial
 
 import numpy as np
@@ -21,13 +24,13 @@ from enet.util import log
 class EERunner(object):
     def __init__(self):
         parser = argparse.ArgumentParser(description="neural networks trainer")
-        parser.add_argument("--test", help="validation set",default="/Users/zhangqi/Documents/event-extractor/EMNLP2018-JMEE-master/ace-05-splits/test.json")
-        parser.add_argument("--train", help="training set", default="/Users/zhangqi/Documents/event-extractor/EMNLP2018-JMEE-master/ace-05-splits/train.json", required=False)
-        parser.add_argument("--dev", help="development set", default="/Users/zhangqi/Documents/event-extractor/EMNLP2018-JMEE-master/ace-05-splits/dev.json",required=False)
+        parser.add_argument("--test", help="validation set",default="/gpfs/home/lianghe/zhoujie/data/aqi/EMNLP2018-JMEE/ace-05-splits/test.json")
+        parser.add_argument("--train", help="training set", default="/gpfs/home/lianghe/zhoujie/data/aqi/EMNLP2018-JMEE/ace-05-splits/train.json", required=False)
+        parser.add_argument("--dev", help="development set", default="/gpfs/home/lianghe/zhoujie/data/aqi/EMNLP2018-JMEE/ace-05-splits/dev.json",required=False)
         parser.add_argument("--webd", help="word embedding", required=False)
 
         parser.add_argument("--batch", help="batch size", default=128, type=int)
-        parser.add_argument("--epochs", help="n of epochs", default=sys.maxsize, type=int)
+        parser.add_argument("--epochs", help="n of epochs", default=30, type=int)
 
         parser.add_argument("--seed", help="RNG seed", default=42, type=int)
         parser.add_argument("--optimizer", default="adam")
@@ -41,13 +44,13 @@ class EERunner(object):
         parser.add_argument("--restart", default=999999, type=int)
 
 
-        parser.add_argument("--device", default="cpu")
+        parser.add_argument("--device", default="cuda") # cuda
         parser.add_argument("--hps", help="model hyperparams", required=False)
 
         self.a = parser.parse_args()
 
     def set_device(self, device="cpu"):
-        self.device = torch.device(device)
+        self.device = device
         # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     def get_device(self):
@@ -58,9 +61,9 @@ class EERunner(object):
         if fine_tune is None:
             return EDModel(self.a.hps, self.get_device())
         else:
-            mymodel = EDModel(self.a.hps)
+            mymodel = EDModel(self.a.hps, self.a.device)
             mymodel.load_model(fine_tune)
-            mymodel.to(self.get_device())
+            mymodel = mymodel.to(self.get_device())
             return mymodel
 
     def get_tester(self, voc_i2s):
@@ -182,7 +185,8 @@ class EERunner(object):
         else:
             model = self.load_model(None)
             log('model created from scratch, there are %i sets of params' % len(model.parameters_requires_grads()))
-
+        #print(self.a.device)
+        model = model.to(self.a.device)
         if self.a.optimizer == "adadelta":
             optimizer_constructor = partial(torch.optim.Adadelta, params=model.parameters_requires_grads(),
                                             weight_decay=self.a.l2decay)

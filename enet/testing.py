@@ -69,6 +69,10 @@ class EDTester():
                 # matched sentences
                 arguments = value
                 arguments_ = sent_[key]
+                # for item in arguments:
+                #     for item_ in arguments_:
+                #         if item == item_:
+                #             ct += 1
                 for item, item_ in zip(arguments, arguments_):
                     if item[2] == item_[2]:
                         ct += 1

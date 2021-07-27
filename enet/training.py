@@ -21,7 +21,7 @@ def train(model, train_set, dev_set, test_set, optimizer_constructor, epochs, te
     print("\nStarting training...\n")
     lr = parser.lr
     optimizer = optimizer_constructor(lr=lr)
-
+    print("parser.device: ", parser.device)
     for i in range(epochs):
         # Training Phrase
         print("Epoch", i + 1)
@@ -40,8 +40,8 @@ def train(model, train_set, dev_set, test_set, optimizer_constructor, epochs, te
                                                                      role_i2s=parser.role_i2s,
                                                                      weight=parser.label_weight,
                                                                      save_output=os.path.join(parser.out,
-                                                                                              "training_epoch_%d.txt" % (
-                                                                                                  i + 1)))
+                                                                                              "training_epoch_%d.json" % (
+                                                                                                  i + 1)), epoch=i+1)
         print("\nEpoch", i + 1, " training loss: ", training_loss,
               "\ntraining ed p: ", training_ed_p,
               " training ed r: ", training_ed_r,
@@ -66,15 +66,15 @@ def train(model, train_set, dev_set, test_set, optimizer_constructor, epochs, te
                                                       MAX_STEP=ceil(len(dev_set) / parser.batch),
                                                       tester=tester,
                                                       hyps=model.hyperparams,
-                                                      device=model.device,
+                                                      device=parser.device,
                                                       maxnorm=parser.maxnorm,
                                                       word_i2s=parser.word_i2s,
                                                       label_i2s=parser.label_i2s,
                                                       role_i2s=parser.role_i2s,
                                                       weight=parser.label_weight,
                                                       save_output=os.path.join(parser.out,
-                                                                               "dev_epoch_%d.txt" % (
-                                                                                   i + 1)))
+                                                                               "dev_epoch_%d.json" % (
+                                                                                   i + 1)), epoch=i+1)
         print("\nEpoch", i + 1, " dev loss: ", dev_loss,
               "\ndev ed p: ", dev_ed_p,
               " dev ed r: ", dev_ed_r,
@@ -99,15 +99,15 @@ def train(model, train_set, dev_set, test_set, optimizer_constructor, epochs, te
                                                          MAX_STEP=ceil(len(test_set) / parser.batch),
                                                          tester=tester,
                                                          hyps=model.hyperparams,
-                                                         device=model.device,
+                                                         device=parser.device,
                                                          maxnorm=parser.maxnorm,
                                                          word_i2s=parser.word_i2s,
                                                          label_i2s=parser.label_i2s,
                                                          role_i2s=parser.role_i2s,
                                                          weight=parser.label_weight,
                                                          save_output=os.path.join(parser.out,
-                                                                                  "test_epoch_%d.txt" % (
-                                                                                      i + 1)))
+                                                                                  "test_epoch_%d.json" % (
+                                                                                      i + 1)), epoch=i+1)
         print("\nEpoch", i + 1, " test loss: ", test_loss,
               "\ntest ed p: ", test_ed_p,
               " test ed r: ", test_ed_r,
@@ -153,13 +153,13 @@ def train(model, train_set, dev_set, test_set, optimizer_constructor, epochs, te
                                                      MAX_STEP=ceil(len(test_set) / parser.batch),
                                                      tester=tester,
                                                      hyps=model.hyperparams,
-                                                     device=model.device,
+                                                     device=parser.device,
                                                      maxnorm=parser.maxnorm,
                                                      word_i2s=parser.word_i2s,
                                                      label_i2s=parser.label_i2s,
                                                      role_i2s=parser.role_i2s,
                                                      weight=parser.label_weight,
-                                                     save_output=os.path.join(parser.out, "test_final.txt"))
+                                                     save_output=os.path.join(parser.out, "test_final.json"), epoch=30)
     print("\nFinally test loss: ", test_loss,
           "\ntest ed p: ", test_ed_p,
           " test ed r: ", test_ed_r,
@@ -182,13 +182,13 @@ def train(model, train_set, dev_set, test_set, optimizer_constructor, epochs, te
             MAX_STEP=ceil(len(additional_test_set) / parser.batch),
             tester=tester,
             hyps=model.hyperparams,
-            device=model.device,
+            device=parser.device,
             maxnorm=parser.maxnorm,
             word_i2s=parser.word_i2s,
             label_i2s=parser.label_i2s,
             role_i2s=parser.role_i2s,
             weight=parser.label_weight,
-            save_output=os.path.join(parser.out, "%s.txt") % (name))
+            save_output=os.path.join(parser.out, "%s.json") % (name), epoch=30)
         print("\nFor ", name, ", additional test loss: ", additional_test_loss,
               " additional ed test p: ", additional_test_ed_p,
               " additional ed test r: ", additional_test_ed_r,
